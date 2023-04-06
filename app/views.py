@@ -5,9 +5,14 @@ Werkzeug Documentation:  https://werkzeug.palletsprojects.com/
 This file creates your application.
 """
 
-from app import app
-from flask import render_template, request, jsonify, send_file
+from app import app,db
+from flask import render_template, request, jsonify, send_file,redirect, url_for, flash, session, abort, send_from_directory
 import os
+from werkzeug.utils import secure_filename
+from app.models import Movie
+from app.forms import MovieForm
+from flask_wtf.csrf import generate_csrf
+
 
 
 ###
@@ -22,7 +27,59 @@ def index():
 ###
 # The functions below should be applicable to all Flask apps.
 ###
+@app.route('/api/v1/movies', methods=['POST','GET'])
+def movies():
+    form = MovieForm()
+    if request.method == "GET":
+        movies = Movie.query.all()
+        movie_data = []
+        for movie in movies:
+            movie_data.append({
+                "id": movie.id,
+                "title": movie.title,
+                "description": movie.description,
+                "poster": url_for('posters', filename=movie.poster)
+            })
 
+        return jsonify(movies=movie_data)
+    
+    elif request.method == 'POST' and form.validate_on_submit():
+        title = form.title.data
+        poster = form.poster.data
+        description = form.description.data
+
+        # Save the movie file to the upload folder
+        filename = poster.filename
+        poster.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+        # Create a new Movie object and add it to the database
+        movie = Movie(title=title, poster=filename, description=description)
+        db.session.add(movie)
+        db.session.commit()
+
+        # Return the movie details in JSON format
+        response = {
+            "message": "Movie Successfully added",
+            "title": title,
+            "poster": filename,
+            "description": description
+        }
+        return jsonify(response), 201
+    else:
+        # Return the form validation errors in JSON format
+        errors = form_errors(form)
+        response = {"errors": errors}
+        return jsonify(response), 400
+
+
+@app.route("/api/v1/posters/<filename>")
+def posters(filename):
+    return send_from_directory(os.path.join(os.getcwd(), app.config['UPLOAD_FOLDER']), filename)
+
+
+@app.route('/api/v1/csrf-token', methods=['GET'])
+def get_csrf():
+ return jsonify({'csrf_token': generate_csrf()})
 # Here we define a function to collect form errors from Flask-WTF
 # which we can later use
 def form_errors(form):
