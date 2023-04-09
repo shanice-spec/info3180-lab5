@@ -52,12 +52,10 @@ def movies():
         filename = poster.filename
         poster.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-        # Create a new Movie object and add it to the database
         movie = Movie(title=title, poster=filename, description=description)
         db.session.add(movie)
         db.session.commit()
 
-        # Return the movie details in JSON format
         response = {
             "message": "Movie Successfully added",
             "title": title,
